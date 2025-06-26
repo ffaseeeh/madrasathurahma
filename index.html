@@ -233,7 +233,6 @@
 
         const watermarkImage = new Image();
         watermarkImage.crossOrigin = 'anonymous'; // Also important for CORS
-        // Updated watermark image URL
         watermarkImage.src = 'https://i.postimg.cc/mkRw4jrq/Madrasathu-Rahma-LOGO-01.png'; 
 
         // Canvas dimensions - Increased resolution for download
@@ -248,6 +247,8 @@
         const PARAGRAPH_SPACING_MULTIPLIER = 0.6; 
         const WATERMARK_OPACITY = 0.15; // 15% opacity for the watermark
         const WATERMARK_SIZE_PERCENT = 0.99; // Watermark takes 60% of canvas width
+        const DATE_FONT_SIZE_BASE = 16; // Base font size for the date (unscaled)
+        const DATE_SPACING_BELOW_HEADER = 10; // Spacing between header and date
 
         let headerLoaded = false;
         let watermarkLoaded = false;
@@ -332,7 +333,8 @@
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(0, 0, canvas.width, canvas.height); // Draw white background
 
-            let headerHeight = 0;
+            let headerBottomY = 0; // Tracks the bottom edge of the header area
+
             if (headerLoaded) {
                 const headerAspectRatio = headerImage.width / headerImage.height;
                 const targetWidth = CANVAS_SIZE;
@@ -357,41 +359,54 @@
                 }
 
                 ctx.drawImage(headerImage, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight);
-                headerHeight = dHeight;
+                headerBottomY = dHeight;
             } else {
                 ctx.fillStyle = '#666';
                 ctx.font = `${40 * (CANVAS_SIZE / BASE_CANVAS_SIZE)}px ${currentFontFamily}`; 
                 ctx.textAlign = 'center';
                 ctx.fillText('Header Image Not Loaded', CANVAS_SIZE / 2, CANVAS_SIZE * 0.06);
                 ctx.fillText('Please ensure the URL is correct and accessible.', CANVAS_SIZE / 2, CANVAS_SIZE * 0.1);
-                headerHeight = CANVAS_SIZE * 0.14; 
+                headerBottomY = CANVAS_SIZE * 0.14; 
             }
+
+            // --- Draw Date ---
+            const today = new Date();
+            const dateOptions = { year: 'numeric', month: 'long', day: 'numeric' };
+            const formattedDate = today.toLocaleDateString('en-US', dateOptions); 
+            
+            const scaledDateFontSize = DATE_FONT_SIZE_BASE * (CANVAS_SIZE / BASE_CANVAS_SIZE);
+            ctx.fillStyle = '#555555'; // Slightly lighter gray for date
+            ctx.textAlign = 'left'; // <<< CHANGED: Date aligned to the left
+            ctx.font = `${scaledDateFontSize}px ${currentFontFamily}`;
+
+            const dateX = CANVAS_SIZE * TEXT_MARGIN_PERCENT; // <<< CHANGED: Date starts from left margin
+            const dateY = headerBottomY + (DATE_SPACING_BELOW_HEADER * (CANVAS_SIZE / BASE_CANVAS_SIZE)) + (scaledDateFontSize * 0.75); 
+
+            ctx.fillText(formattedDate, dateX, dateY);
+            let contentStartAfterDate = dateY + (scaledDateFontSize * 0.25) + (CANVAS_SIZE * TEXT_MARGIN_PERCENT); 
 
             // --- Draw Watermark ---
             if (watermarkLoaded) {
-                ctx.save(); // Save the current canvas state (including globalAlpha)
-                ctx.globalAlpha = WATERMARK_OPACITY; // Set desired opacity
+                ctx.save(); 
+                ctx.globalAlpha = WATERMARK_OPACITY; 
 
                 const watermarkAspectRatio = watermarkImage.width / watermarkImage.height;
                 let watermarkDrawWidth = CANVAS_SIZE * WATERMARK_SIZE_PERCENT;
                 let watermarkDrawHeight = watermarkDrawWidth / watermarkAspectRatio;
 
-                // If the watermark is too tall for the remaining space, reduce its size
-                const availableSpaceForWatermark = CANVAS_SIZE - headerHeight;
-                if (watermarkDrawHeight > availableSpaceForWatermark * 0.8) { // Max 80% of remaining height
-                    watermarkDrawHeight = availableSpaceForWatermark * 0.8;
+                if (watermarkDrawHeight > CANVAS_SIZE) { 
+                    watermarkDrawHeight = CANVAS_SIZE;
                     watermarkDrawWidth = watermarkDrawHeight * watermarkAspectRatio;
                 }
-
+                
                 const watermarkX = (CANVAS_SIZE - watermarkDrawWidth) / 2;
-                const watermarkY = headerHeight + ((CANVAS_SIZE - headerHeight - watermarkDrawHeight) / 2);
+                const watermarkY = (CANVAS_SIZE - watermarkDrawHeight) / 2; 
 
                 ctx.drawImage(watermarkImage, watermarkX, watermarkY, watermarkDrawWidth, watermarkDrawHeight);
-                ctx.restore(); // Restore the canvas state (globalAlpha back to 1.0)
+                ctx.restore(); 
             } else {
-                 // Optionally display a placeholder for the watermark if it fails to load
                  ctx.fillStyle = '#999';
-                 ctx.font = `20px ${currentFontFamily}`;
+                 ctx.font = `${20 * (CANVAS_SIZE / BASE_CANVAS_SIZE)}px ${currentFontFamily}`;
                  ctx.textAlign = 'center';
                  ctx.fillText('Watermark Not Loaded', CANVAS_SIZE / 2, CANVAS_SIZE * 0.5);
             }
@@ -407,11 +422,9 @@
             const textX = CANVAS_SIZE * TEXT_MARGIN_PERCENT;
             const maxWidth = CANVAS_SIZE - (CANVAS_SIZE * TEXT_MARGIN_PERCENT * 2);
 
-            // Scaled font size based on the slider value for initial estimation
             let scaledSelectedFontSize = currentFontSize * (CANVAS_SIZE / BASE_CANVAS_SIZE);
             console.log(`[drawCircular] Slider Value (unscaled): ${currentFontSize}px, Scaled for Canvas: ${scaledSelectedFontSize}px`);
 
-            // Pass 1: Estimate total height required for all paragraphs
             let estimatedTotalContentHeight = 0;
             ctx.font = `${scaledSelectedFontSize}px ${currentFontFamily}`; 
 
@@ -429,60 +442,56 @@
                 }
             }
 
-            const availableVerticalSpace = CANVAS_SIZE - (headerHeight + (CANVAS_SIZE * TEXT_MARGIN_PERCENT) * 2);
+            const availableVerticalSpaceForText = CANVAS_SIZE - (contentStartAfterDate + (CANVAS_SIZE * TEXT_MARGIN_PERCENT));
 
             let actualFontSizeToDraw = scaledSelectedFontSize;
             let fontClamped = false;
 
-            if (estimatedTotalContentHeight > availableVerticalSpace && textContent.trim().length > 0) {
-                actualFontSizeToDraw = Math.floor(scaledSelectedFontSize * (availableVerticalSpace / estimatedTotalContentHeight));
+            if (estimatedTotalContentHeight > availableVerticalSpaceForText && textContent.trim().length > 0) {
+                actualFontSizeToDraw = Math.floor(scaledSelectedFontSize * (availableVerticalSpaceForText / estimatedTotalContentHeight));
                 if (actualFontSizeToDraw < MIN_SCALED_FONT_SIZE) { 
                     actualFontSizeToDraw = MIN_SCALED_FONT_SIZE;
                     fontClamped = true;
                 }
             }
             
-            console.log(`[drawCircular] Estimated Total Height: ${estimatedTotalContentHeight}px, Available Space: ${availableVerticalSpace}px, Final Font Size for Drawing: ${actualFontSizeToDraw}px`);
+            console.log(`[drawCircular] Estimated Total Height: ${estimatedTotalContentHeight}px, Available Space: ${availableVerticalSpaceForText}px, Final Font Size for Drawing: ${actualFontSizeToDraw}px`);
             if (fontClamped) {
                 showMessage(`Text too long, font size reduced to minimum (${Math.round(MIN_SCALED_FONT_SIZE / (CANVAS_SIZE / BASE_CANVAS_SIZE))}px) to fit.`, true);
             } else {
                 showMessage("Circular updated!", false);
             }
 
-            // Set the *final* font for actual drawing
             ctx.font = `${actualFontSizeToDraw}px ${currentFontFamily}`; 
             const actualLineHeight = actualFontSizeToDraw * LINE_HEIGHT_MULTIPLIER;
             const actualParagraphSpacing = actualLineHeight * PARAGRAPH_SPACING_MULTIPLIER;
 
-            // Pass 2: Generate final lines and calculate precise total height for centering
             let finalRenderLines = []; 
-            let currentContentHeight = 0; 
+            let currentContentTotalHeight = 0; 
 
             for (let i = 0; i < rawParagraphs.length; i++) {
                 const paragraph = rawParagraphs[i].trim();
                 
                 if (paragraph === '') {
                     finalRenderLines.push(''); 
-                    currentContentHeight += actualLineHeight;
+                    currentContentTotalHeight += actualLineHeight;
                 } else {
                     const linesForParagraph = getWrappedLines(paragraph, ctx.font, maxWidth); 
                     finalRenderLines.push(...linesForParagraph);
-                    currentContentHeight += (linesForParagraph.length * actualLineHeight);
+                    currentContentTotalHeight += (linesForParagraph.length * actualLineHeight);
                 }
                 
                 if (i < rawParagraphs.length - 1) {
                     finalRenderLines.push('___PARAGRAPH_BREAK___'); 
-                    currentContentHeight += actualParagraphSpacing;
+                    currentContentTotalHeight += actualParagraphSpacing;
                 }
             }
 
-            // Calculate the overall starting Y position for the entire text block to center it
-            let textBlockStartY = headerHeight + ((CANVAS_SIZE - headerHeight - currentContentHeight) / 2);
-            if (textBlockStartY < headerHeight + (CANVAS_SIZE * TEXT_MARGIN_PERCENT)) {
-                textBlockStartY = headerHeight + (CANVAS_SIZE * TEXT_MARGIN_PERCENT);
+            let textBlockStartY = contentStartAfterDate + ((availableVerticalSpaceForText - currentContentTotalHeight) / 2);
+            if (textBlockStartY < contentStartAfterDate) {
+                textBlockStartY = contentStartAfterDate;
             }
 
-            // Draw all the lines from the `finalRenderLines` array
             let currentDrawingY = textBlockStartY + actualFontSizeToDraw * 0.75; 
 
             for (let i = 0; i < finalRenderLines.length; i++) {
