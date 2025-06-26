@@ -170,7 +170,7 @@
         }
     </style>
 </head>
-<body class="p-4 md:p-8">
+<body>
     <div class="container">
         <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-4 text-center">Madrasa Circular Creator</h1>
 
@@ -231,6 +231,11 @@
         headerImage.crossOrigin = 'anonymous'; // Important for CORS to allow toDataURL
         headerImage.src = 'https://i.postimg.cc/RVC3MtL2/boardmadrasa-1.jpg'; 
 
+        const watermarkImage = new Image();
+        watermarkImage.crossOrigin = 'anonymous'; // Also important for CORS
+        // Updated watermark image URL
+        watermarkImage.src = 'https://i.postimg.cc/mkRw4jrq/Madrasathu-Rahma-LOGO-01.png'; 
+
         // Canvas dimensions - Increased resolution for download
         const CANVAS_SIZE = 1500; 
         const BASE_CANVAS_SIZE = 500; // Original canvas size for font scaling reference for preview
@@ -241,8 +246,11 @@
         const TEXT_MARGIN_PERCENT = 0.04; 
         const LINE_HEIGHT_MULTIPLIER = 1.4; 
         const PARAGRAPH_SPACING_MULTIPLIER = 0.6; 
+        const WATERMARK_OPACITY = 0.15; // 15% opacity for the watermark
+        const WATERMARK_SIZE_PERCENT = 0.99; // Watermark takes 60% of canvas width
 
         let headerLoaded = false;
+        let watermarkLoaded = false;
         // currentFontSize stores the UNscaled value from the slider (e.g., 24px)
         let currentFontSize = parseInt(fontSizeInput.value); 
         let currentFontFamily = fontFamilySelect.value; 
@@ -258,10 +266,23 @@
 
         headerImage.onerror = () => {
             console.error("Failed to load header image from URL: " + headerImage.src);
-            showMessage("Error: Could not load header image from the provided URL. Please check the URL or try again later.", true);
+            showMessage("Error: Could not load header image. Please check the URL or try again later.", true);
             headerLoaded = false;
             drawCircular();
         };
+        
+        watermarkImage.onload = () => {
+            watermarkLoaded = true;
+            drawCircular();
+        };
+
+        watermarkImage.onerror = () => {
+            console.error("Failed to load watermark image from URL: " + watermarkImage.src);
+            showMessage("Error: Could not load watermark image. Please check the URL or try again later.", true);
+            watermarkLoaded = false;
+            // No need to redraw if it fails, it will just not show
+        };
+
 
         circularTextarea.addEventListener('input', drawCircular);
         downloadBtn.addEventListener('click', downloadCircular);
@@ -346,6 +367,36 @@
                 headerHeight = CANVAS_SIZE * 0.14; 
             }
 
+            // --- Draw Watermark ---
+            if (watermarkLoaded) {
+                ctx.save(); // Save the current canvas state (including globalAlpha)
+                ctx.globalAlpha = WATERMARK_OPACITY; // Set desired opacity
+
+                const watermarkAspectRatio = watermarkImage.width / watermarkImage.height;
+                let watermarkDrawWidth = CANVAS_SIZE * WATERMARK_SIZE_PERCENT;
+                let watermarkDrawHeight = watermarkDrawWidth / watermarkAspectRatio;
+
+                // If the watermark is too tall for the remaining space, reduce its size
+                const availableSpaceForWatermark = CANVAS_SIZE - headerHeight;
+                if (watermarkDrawHeight > availableSpaceForWatermark * 0.8) { // Max 80% of remaining height
+                    watermarkDrawHeight = availableSpaceForWatermark * 0.8;
+                    watermarkDrawWidth = watermarkDrawHeight * watermarkAspectRatio;
+                }
+
+                const watermarkX = (CANVAS_SIZE - watermarkDrawWidth) / 2;
+                const watermarkY = headerHeight + ((CANVAS_SIZE - headerHeight - watermarkDrawHeight) / 2);
+
+                ctx.drawImage(watermarkImage, watermarkX, watermarkY, watermarkDrawWidth, watermarkDrawHeight);
+                ctx.restore(); // Restore the canvas state (globalAlpha back to 1.0)
+            } else {
+                 // Optionally display a placeholder for the watermark if it fails to load
+                 ctx.fillStyle = '#999';
+                 ctx.font = `20px ${currentFontFamily}`;
+                 ctx.textAlign = 'center';
+                 ctx.fillText('Watermark Not Loaded', CANVAS_SIZE / 2, CANVAS_SIZE * 0.5);
+            }
+
+
             // --- Text Rendering Logic ---
             const textContent = circularTextarea.value;
             const rawParagraphs = textContent.split('\n'); 
@@ -362,20 +413,17 @@
 
             // Pass 1: Estimate total height required for all paragraphs
             let estimatedTotalContentHeight = 0;
-            // Set font temporarily for measurement during this pass
             ctx.font = `${scaledSelectedFontSize}px ${currentFontFamily}`; 
 
             for (let i = 0; i < rawParagraphs.length; i++) {
                 const paragraph = rawParagraphs[i].trim();
                 if (paragraph === '') {
-                    // Blank line (explicit newline from user)
                     estimatedTotalContentHeight += (scaledSelectedFontSize * LINE_HEIGHT_MULTIPLIER); 
                 } else {
                     const linesForParagraph = getWrappedLines(paragraph, ctx.font, maxWidth);
                     estimatedTotalContentHeight += (linesForParagraph.length * (scaledSelectedFontSize * LINE_HEIGHT_MULTIPLIER));
                 }
                 
-                // Add paragraph spacing, but not after the very last paragraph
                 if (i < rawParagraphs.length - 1) {
                     estimatedTotalContentHeight += (scaledSelectedFontSize * LINE_HEIGHT_MULTIPLIER * PARAGRAPH_SPACING_MULTIPLIER);
                 }
@@ -386,10 +434,8 @@
             let actualFontSizeToDraw = scaledSelectedFontSize;
             let fontClamped = false;
 
-            // Only adjust font size if there's actual content and it overflows
             if (estimatedTotalContentHeight > availableVerticalSpace && textContent.trim().length > 0) {
                 actualFontSizeToDraw = Math.floor(scaledSelectedFontSize * (availableVerticalSpace / estimatedTotalContentHeight));
-                // Clamp to minimum scaled font size
                 if (actualFontSizeToDraw < MIN_SCALED_FONT_SIZE) { 
                     actualFontSizeToDraw = MIN_SCALED_FONT_SIZE;
                     fontClamped = true;
@@ -409,36 +455,34 @@
             const actualParagraphSpacing = actualLineHeight * PARAGRAPH_SPACING_MULTIPLIER;
 
             // Pass 2: Generate final lines and calculate precise total height for centering
-            let finalRenderLines = []; // This will be a flat array of all lines across all paragraphs
-            let currentContentHeight = 0; // Tracks height of content in this pass
+            let finalRenderLines = []; 
+            let currentContentHeight = 0; 
 
             for (let i = 0; i < rawParagraphs.length; i++) {
                 const paragraph = rawParagraphs[i].trim();
                 
                 if (paragraph === '') {
-                    finalRenderLines.push(''); // Add a blank string marker for explicit empty lines
+                    finalRenderLines.push(''); 
                     currentContentHeight += actualLineHeight;
                 } else {
-                    const linesForParagraph = getWrappedLines(paragraph, ctx.font, maxWidth); // Re-wrap with actualFontSizeToDraw
+                    const linesForParagraph = getWrappedLines(paragraph, ctx.font, maxWidth); 
                     finalRenderLines.push(...linesForParagraph);
                     currentContentHeight += (linesForParagraph.length * actualLineHeight);
                 }
                 
                 if (i < rawParagraphs.length - 1) {
-                    finalRenderLines.push('___PARAGRAPH_BREAK___'); // Unique marker for paragraph break spacing
+                    finalRenderLines.push('___PARAGRAPH_BREAK___'); 
                     currentContentHeight += actualParagraphSpacing;
                 }
             }
 
             // Calculate the overall starting Y position for the entire text block to center it
             let textBlockStartY = headerHeight + ((CANVAS_SIZE - headerHeight - currentContentHeight) / 2);
-            // Ensure it doesn't go above the allowed top margin
             if (textBlockStartY < headerHeight + (CANVAS_SIZE * TEXT_MARGIN_PERCENT)) {
                 textBlockStartY = headerHeight + (CANVAS_SIZE * TEXT_MARGIN_PERCENT);
             }
 
             // Draw all the lines from the `finalRenderLines` array
-            // Adjust currentDrawingY by a fraction of font size to account for baseline vs top
             let currentDrawingY = textBlockStartY + actualFontSizeToDraw * 0.75; 
 
             for (let i = 0; i < finalRenderLines.length; i++) {
@@ -448,7 +492,7 @@
                 } else if (line !== '') {
                     ctx.fillText(line, textX, currentDrawingY);
                     currentDrawingY += actualLineHeight;
-                } else { // Handle explicit blank lines from user input
+                } else { 
                     currentDrawingY += actualLineHeight;
                 }
             }
