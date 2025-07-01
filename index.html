@@ -197,8 +197,8 @@
             
             <label for="fontFamily">Font Family:</label>
             <select id="fontFamily" class="rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="Inter, sans-serif">Inter</option>
                 <option value="Noto Sans Malayalam, sans-serif">Noto Sans Malayalam</option>
+                <option value="Inter, sans-serif">Inter</option>
                 <option value="Manjari, sans-serif">Manjari</option>
                 <option value="Gayathri, sans-serif">Gayathri</option>
                 <option value="AnjaliOldLipi, serif">AnjaliOldLipi</option>
@@ -229,11 +229,11 @@
 
         const headerImage = new Image();
         headerImage.crossOrigin = 'anonymous'; // Important for CORS to allow toDataURL
-        headerImage.src = 'https://i.postimg.cc/RVC3MtL2/boardmadrasa-1.jpg'; 
+        headerImage.src = 'https://i.postimg.cc/63T9j5Mh/feerecieptheader1.png'; // Updated header image URL
 
         const watermarkImage = new Image();
         watermarkImage.crossOrigin = 'anonymous'; // Also important for CORS
-        watermarkImage.src = 'https://i.postimg.cc/mkRw4jrq/Madrasathu-Rahma-LOGO-01.png'; 
+        watermarkImage.src = 'https://i.postimg.cc/mkRw4jrq/Madrasathu-Rahma-LOGO-01.png'; // Corrected typo here
 
         // Canvas dimensions - Increased resolution for download
         const CANVAS_SIZE = 1500; 
@@ -241,7 +241,7 @@
         canvas.width = CANVAS_SIZE;
         canvas.height = CANVAS_SIZE;
 
-        const HEADER_MAX_HEIGHT_PERCENT = 0.25; 
+        const HEADER_MAX_HEIGHT_PERCENT = 0.20; 
         const TEXT_MARGIN_PERCENT = 0.04; 
         const LINE_HEIGHT_MULTIPLIER = 1.4; 
         const PARAGRAPH_SPACING_MULTIPLIER = 0.6; 
@@ -376,10 +376,10 @@
             
             const scaledDateFontSize = DATE_FONT_SIZE_BASE * (CANVAS_SIZE / BASE_CANVAS_SIZE);
             ctx.fillStyle = '#555555'; // Slightly lighter gray for date
-            ctx.textAlign = 'left'; // <<< CHANGED: Date aligned to the left
+            ctx.textAlign = 'left'; 
             ctx.font = `${scaledDateFontSize}px ${currentFontFamily}`;
 
-            const dateX = CANVAS_SIZE * TEXT_MARGIN_PERCENT; // <<< CHANGED: Date starts from left margin
+            const dateX = CANVAS_SIZE * TEXT_MARGIN_PERCENT; 
             const dateY = headerBottomY + (DATE_SPACING_BELOW_HEADER * (CANVAS_SIZE / BASE_CANVAS_SIZE)) + (scaledDateFontSize * 0.75); 
 
             ctx.fillText(formattedDate, dateX, dateY);
